@@ -1,0 +1,19 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Verify
+      run: bash ./scripts/ci.sh "${{ github.head_ref }}"
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: RafikFarhad/clang-format-github-action@v3
+        with:
+          sources: "task*/src/**/*.h,task*/src/**/*.cpp,task*/src/**/*.hpp,task*/include/**/*.h,task*/include/**/*.hpp"
+          excludes: "some_file.cpp" ## action is not working correctly if exclude field is empty
+          style: file
