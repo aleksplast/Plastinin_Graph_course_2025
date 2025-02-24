@@ -24,9 +24,56 @@ private:
     uint64_t m_log_cnt = 0;
 
     // Rotate RedBlackTree right around given node
-    void rotate_right(Node node);
+    void rotate_right(Node *node) {
+        if (!node->get_left()) {
+            return;
+        }
+
+        Node *left = node->get_left();
+        node->set_left(left->get_right());
+
+        if (left->get_right()) {
+            left->get_right()->set_parent(node);
+        }
+        Node *parent = node->get_parent();
+        left->set_parent(parent);
+
+        if (!parent) {
+            m_root = left;
+        } else if (node == parent->get_left()) {
+            parent->set_left(left);
+        } else {
+            parent->set_right(left);
+        }
+
+        left->set_right(node);
+        node->set_parent(left);
+    }
     // Rotate RedBlackTree left around given node
-    void rotate_left(Node node);
+    void rotate_left(Node *node) {
+        if (!node->get_right()) {
+            return;
+        }
+        Node *right = node->get_right();
+        node->set_right(right->get_left());
+
+        if (right->get_left()) {
+            right->get_left()->set_parent(node);
+        }
+        Node *parent = node->get_parent();
+        right->set_parent(parent);
+
+        if (!parent) {
+            m_root = right;
+        } else if (node == parent->get_left()) {
+            parent->set_left(right);
+        } else {
+            parent->set_right(right);
+        }
+
+        right->set_left(node);
+        node->set_parent(right);
+    }
 
     // Find minimum of the tree
     // node - root of the tree
