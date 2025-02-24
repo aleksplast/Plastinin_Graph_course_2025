@@ -1,6 +1,12 @@
 #pragma once
 
+#include <iostream>
+#include <inttypes.h>
+
 namespace Task1 {
+
+const std::string BLACK = "black";
+const std::string RED = "red";
 
 // Colour of the TreeNode
 enum class Color {
@@ -43,15 +49,55 @@ public:
     // Set parent of the node
     void set_parent(TreeNode *parent) { m_parent = parent; }
 
+    const std::string &color_to_string(Color &color) {
+        switch(color) {
+            case Color::Red:
+                return RED;
+            case Color::Black:
+                return BLACK;
+        }
+    }
+
     // TreeNode constructor
     TreeNode(const KeyT &key = 0, const TreeNode<KeyT> parent = nullptr,
             const TreeNode<KeyT> *right = nullptr, const TreeNode<KeyT> *left = nullptr,
             Color color = Color::Black)
     : m_key(key), m_right(right), m_left(left), m_parent(parent), m_color(color) {}
 
+    // Constructor, with data from other node
     TreeNode(const TreeNode *other) {
         m_color = other->m_color;
         m_key = other->m_key;
+    }
+
+    // Dump Node to graphviz
+    // log - log ostream
+    // counter - number visited nodes counter
+    // returns number of the node in reverse post order
+    uint64_t dump_to_graphviz(uint64_t &counter, std::ostream &log) {
+        uint64_t num_left = 0;
+        uint64_t num_right = 0;
+        if (m_left) {
+            num_left = m_left->dump_to_graphviz(counter, log);
+        }
+        if (m_right) {
+            num_right = m_right->dump_to_graphviz(counter, log);
+        }
+
+        log << "\t\"node" << counter
+            << "\" [shape = \"circle\", style = \"filled\", fillcolor = \""
+            << color_to_string(m_color) << "\", label = \""
+            << m_key << "\"]\n";
+
+        if (m_left) {
+            log << "\t\"node" << counter << "\" -- \"node" << num_left << "\"\n";
+        }
+        if (m_right) {
+            log << "\t\"node" << counter << "\" -- \"node" << num_right << "\"\n";
+        }
+
+        counter += 1;
+        return counter - 1;
     }
 }; // class TreeNode
 

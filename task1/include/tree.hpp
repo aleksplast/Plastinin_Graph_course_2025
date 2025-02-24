@@ -2,6 +2,7 @@
 
 #include "node.hpp"
 
+#include <fstream>
 #include <functional>
 
 namespace Task1 {
@@ -14,17 +15,43 @@ class RedBlackTree {
 
 private:
     // Root of the tree
-    Node *m_root = nullptr;
+    Node* m_root = nullptr;
     // Size of the tree
     size_t m_size = 0;
+    // File with log
+    bool m_log;
+    // Log file counter
+    uint64_t m_log_cnt = 0;
 
     // Rotate RedBlackTree right around given node
     void rotate_right(Node node);
     // Rotate RedBlackTree left around given node
     void rotate_left(Node node);
 
+    // Find minimum of the tree
+    // node - root of the tree
+    Node *minimum(Node *node) {
+        while (node->get_left()) {
+            node = node->get_left();
+        }
+
+        return node;
+    }
+
     // Get successor of the given node
-    Node *successor(Node *node);
+    Node *successor(Node *node) {
+        if (node->get_right()) {
+            return minimum(node->get_right());
+        }
+
+        Node *parent = node->get_parent();
+        while (parent != nullptr && node == parent->get_right()) {
+            node = parent;
+            parent = parent->get_parent();
+        }
+
+        return parent;
+    }
 
     // Fixup RedBlackTree after fixup
     // inserted_node - node, that was inserted
@@ -32,6 +59,16 @@ private:
     // Fixup after erasing node
     // deleted_node - node, that was dele
     void erase_fixup(Node *deleted_node);
+
+    Node *tree_search(Node *node, KeyT &key) {
+        if (node == nullptr || key == node->get_key()) {
+            return node;
+        } else if (comparator(key, node->get_key())) {
+            return tree_search(node->get_right(), key);
+        } else {
+            return tree_search(node->get_left(), key);
+        }
+    }
 public:
     // Insert value into the RedBlackTree
     void insert(KeyT &value);
@@ -39,6 +76,14 @@ public:
     void erase(KeyT &value);
     // Join another tree into this
     void join(RedBlackTree &other);
+    // Check, if tree containts given key
+    bool contains(KeyT &key) {
+        if (tree_search(m_root, key)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 
     // Default constructor
     RedBlackTree(){};
@@ -79,6 +124,10 @@ public:
                     rhs_curr = rhs_curr->get_parent();
                 }
             }
+        }
+
+        if (m_log) {
+            dump_to_graphviz();
         }
     }
     // Move constructor
@@ -125,6 +174,30 @@ public:
                 }
             }
         }
+    }
+
+    void enable_log() { m_log = true; }
+
+    void dump_to_graphviz() {
+        std::string log_num = std::to_string(m_log_cnt);
+        std::string graphviz_name(log_num + ".dot");
+        std::string picture_name(log_num + ".png");
+        std::ofstream log(graphviz_name);
+
+        log << "strict graph {\n"
+            << "\trankdir = TB\n"
+            << "\t\"info\" [shape = \"record\", style = \"filled\", fillcolor = \"grey\", label = \"{size = "
+            << m_size << "|anchor = "
+            << m_root << "}\"]\n";
+
+        uint64_t counter = 1;
+        m_root->dump_to_graphviz(counter, log);
+
+        log << '}';
+        std::string src("dot -Tpng " + graphviz_name + " -o " + picture_name);
+        log.close();
+        m_log_cnt += 1;
+        std::system(src.c_str());
     }
 }; // class RedBlackTree
 
