@@ -5,7 +5,7 @@
 
 namespace Task1 {
 
-const std::string BLACK = "black";
+const std::string GREY = "grey";
 const std::string RED = "red";
 
 // Colour of the TreeNode
@@ -29,12 +29,14 @@ private:
     TreeNode *m_parent = nullptr;
 
     // Colour of the node
-    Color m_color;
+    Color m_color = Color::Red;
 public:
     // Get value hold in the node
     const KeyT &get_key() const { return m_key; }
+    // Get color of the node
+    Color get_color() const { return m_color; }
     // Set color of the node
-    void set_color(Color &color) { m_color = color; }
+    void set_color(Color color) { m_color = color; }
 
     // Get right child of the node
     TreeNode *get_right() const { return m_right; }
@@ -54,18 +56,22 @@ public:
             case Color::Red:
                 return RED;
             case Color::Black:
-                return BLACK;
+                return GREY;
         }
     }
 
     // TreeNode constructor
-    TreeNode(const KeyT &key = 0, const TreeNode<KeyT> parent = nullptr,
-            const TreeNode<KeyT> *right = nullptr, const TreeNode<KeyT> *left = nullptr,
-            Color color = Color::Black)
+    TreeNode(const KeyT &key = 0, TreeNode<KeyT> *parent = nullptr,
+            TreeNode<KeyT> *right = nullptr, TreeNode<KeyT> *left = nullptr,
+            Color color = Color::Red)
     : m_key(key), m_right(right), m_left(left), m_parent(parent), m_color(color) {}
 
     // Constructor, with data from other node
-    TreeNode(const TreeNode *other) {
+    TreeNode(const TreeNode *other)
+    : m_color(other->m_color), m_key(other->m_key) {}
+
+    // Copy data from other node
+    void copy_data(const TreeNode *other) {
         m_color = other->m_color;
         m_key = other->m_key;
     }

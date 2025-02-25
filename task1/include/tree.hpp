@@ -19,13 +19,13 @@ private:
     // Size of the tree
     size_t m_size = 0;
     // File with log
-    bool m_log;
+    bool m_log = false;
     // Log file counter
     uint64_t m_log_cnt = 0;
 
     // Rotate RedBlackTree right around given node
     void rotate_right(Node *node) {
-        if (!node->get_left()) {
+        if (!node || !node->get_left()) {
             return;
         }
 
@@ -48,10 +48,12 @@ private:
 
         left->set_right(node);
         node->set_parent(left);
+
+        dump_to_graphviz();
     }
     // Rotate RedBlackTree left around given node
     void rotate_left(Node *node) {
-        if (!node->get_right()) {
+        if (!node || !node->get_right()) {
             return;
         }
         Node *right = node->get_right();
@@ -73,6 +75,8 @@ private:
 
         right->set_left(node);
         node->set_parent(right);
+
+        dump_to_graphviz();
     }
 
     // Find minimum of the tree
@@ -100,32 +104,245 @@ private:
         return parent;
     }
 
-    // Fixup RedBlackTree after fixup
-    // inserted_node - node, that was inserted
-    void insert_fixup(Node *inserted_node);
-    // Fixup after erasing node
-    // deleted_node - node, that was dele
-    void erase_fixup(Node *deleted_node);
-
-    Node *tree_search(Node *node, KeyT &key) {
+    // Finds Node with key in the tree
+    Node *find(Node *node, KeyT &key) {
         if (node == nullptr || key == node->get_key()) {
             return node;
-        } else if (comparator(key, node->get_key())) {
-            return tree_search(node->get_right(), key);
+        } else if (comparator()(key, node->get_key())) {
+            return find(node->get_left(), key);
         } else {
-            return tree_search(node->get_left(), key);
+            return find(node->get_right(), key);
         }
     }
+
+    // Fixup RedBlackTree after fixup
+    // node - node, that was inserted
+    void insert_fixup(Node *node) {
+        if (node == m_root) {
+            node->set_color(Color::Black);
+            return;
+        }
+
+        Node *parent = node->get_parent();
+        while (parent && parent->get_color() == Color::Red) {
+            Node *parent_parent = parent->get_parent();
+
+            if (parent_parent->get_left() == parent) {
+                Node *parent_parent_right = parent_parent->get_right();
+
+                if (parent_parent_right && parent_parent_right->get_color() == Color::Red) {
+                    parent->set_color(Color::Black);
+                    parent_parent_right->set_color(Color::Black);
+                    parent_parent->set_color(Color::Red);
+                    node = parent_parent;
+                } else if (node == parent->get_right()) {
+                    node = parent;
+                    rotate_left(node);
+                }
+
+                parent = node->get_parent();
+                if (parent) {
+                    parent->set_color(Color::Black);
+                    parent_parent = parent->get_parent();
+                    if (parent_parent) {
+                        parent_parent->set_color(Color::Red);
+                        rotate_right(parent_parent);
+                    }
+                }
+            } else {
+                Node *parent_parent_left = parent_parent->get_left();
+
+                if (parent_parent_left && parent_parent_left->get_color() == Color::Red) {
+                    parent->set_color(Color::Black);
+                    parent_parent_left->set_color(Color::Black);
+                    parent_parent->set_color(Color::Red);
+                    node = parent_parent;
+                } else if (node == parent->get_left()) {
+                    node = parent;
+                    rotate_right(node);
+                }
+
+                parent = node->get_parent();
+                if (parent) {
+                    parent->set_color(Color::Black);
+                    parent_parent = parent->get_parent();
+                    if (parent_parent) {
+                        parent_parent->set_color(Color::Red);
+                        rotate_left(parent_parent);
+                    }
+                }
+            }
+        }
+
+        m_root->set_color(Color::Black);
+    }
+    // Fixup after erasing node
+    // node - child of the successor of the deleted node
+    void erase_fixup(Node *node) {
+        while (node && node != m_root && node->get_color() == Color::Black) {
+            Node *parent = node->get_parent();
+            if (node == parent->get_left()) {
+                Node *parent_right = parent->get_right();
+                if (parent_right->get_color() == Color::Red) {
+                    parent_right->set_color(Color::Black);
+                    parent->set_color(Color::Red);
+                    rotate_left(parent);
+                    parent_right = parent->get_right();
+                }
+
+                if (parent_right->get_left() && parent_right->get_left()->get_color() == Color::Black &&
+                    parent_right->get_right() && parent_right->get_right()->get_color() == Color::Black) {
+                    parent_right->set_color(Color::Red);
+                    rotate_right(parent_right);
+                    parent_right = parent->get_right();
+                } else if (parent_right->get_right() && parent_right->get_right()->get_color() == Color::Black) {
+                    if (parent_right->get_left()) {
+                        parent_right->get_left()->set_color(Color::Black);
+                    }
+
+                    parent_right->set_color(Color::Red);
+                    rotate_right(parent_right);
+                    parent_right = parent->get_right();
+                }
+
+                parent_right->set_color(parent->get_color());
+                parent->set_color(Color::Black);
+                if (parent_right->get_right()) {
+                    parent_right->get_right()->set_color(Color::Black);
+                }
+                rotate_left(parent);
+                node = m_root;
+            } else {
+                Node *parent_left = parent->get_left();
+                if (parent_left->get_color() == Color::Red) {
+                    parent_left->set_color(Color::Black);
+                    parent->set_color(Color::Red);
+                    rotate_right(parent);
+                    parent_left = parent->get_right();
+                }
+
+                if (parent_left->get_left() && parent_left->get_left()->get_color() == Color::Black &&
+                    parent_left->get_right() && parent_left->get_right()->get_color() == Color::Black) {
+                    parent_left->set_color(Color::Red);
+                    rotate_left(parent_left);
+                    parent_left = parent->get_right();
+                } else if (parent_left->get_left() && parent_left->get_left()->get_color() == Color::Black) {
+                    if (parent_left->get_right()) {
+                        parent_left->get_right()->set_color(Color::Black);
+                    }
+
+                    parent_left->set_color(Color::Red);
+                    rotate_left(parent_left);
+                    parent_left = parent->get_right();
+                }
+
+                parent_left->set_color(parent->get_color());
+                parent->set_color(Color::Black);
+                if (parent_left->get_left()) {
+                    parent_left->get_left()->set_color(Color::Black);
+                }
+                rotate_right(parent);
+                node = m_root;
+            }
+        }
+    }
+
 public:
     // Insert value into the RedBlackTree
-    void insert(KeyT &value);
-    // Erase value from the RedBlackTree
-    void erase(KeyT &value);
+    void insert(const KeyT &key) {
+        Node *new_node = new Node(key);
+        Node *parent = nullptr;
+        Node *curr_node = m_root;
+
+        while (curr_node) {
+            parent = curr_node;
+            if (comparator()(new_node->get_key(), curr_node->get_key())) {
+                curr_node = curr_node->get_left();
+            } else {
+                curr_node = curr_node->get_right();
+            }
+        }
+
+        new_node->set_parent(parent);
+
+        if (!parent) {
+            m_root = new_node;
+        } else if (comparator()(new_node->get_key(), parent->get_key())) {
+            parent->set_left(new_node);
+        } else {
+            parent->set_right(new_node);
+        }
+
+        m_size += 1;
+
+        dump_to_graphviz();
+
+        insert_fixup(new_node);
+
+        dump_to_graphviz();
+    }
+    // Erase node containing key from the RedBlackTree
+    void erase(KeyT &key) {
+        Node *node = find(key);
+
+        if (!node) {
+            return;
+        }
+        erase(node);
+    }
+    // Erase node from the tree
+    void erase(Node *node) {
+        Node *succ = nullptr;
+        Node *succ_child = nullptr;
+        if (!node->get_left() || !node->get_right()) {
+            succ = node;
+        } else {
+            succ = successor(node);
+        }
+
+        if (succ->get_left()) {
+            succ_child = succ->get_left();
+        } else {
+            succ_child = succ->get_right();
+        }
+
+        Node *succ_parent = succ->get_parent();
+        if (succ_child) {
+            succ_child->set_parent(succ_parent);
+        }
+
+        if (!succ_parent) {
+            m_root = succ_child;
+        } else if (succ == succ_parent->get_left()) {
+            succ_parent->set_left(succ_child);
+        } else {
+            succ_parent->set_right(succ_child);
+        }
+
+        if (succ != node) {
+            node->copy_data(succ);
+        }
+
+        dump_to_graphviz();
+
+        if (succ->get_color() == Color::Black) {
+            erase_fixup(succ_child);
+        }
+
+        m_size -= 1;
+        delete succ;
+
+        dump_to_graphviz();
+    }
+
+    Node *find(KeyT &key) {
+        return find(m_root, key);
+    }
     // Join another tree into this
     void join(RedBlackTree &other);
     // Check, if tree containts given key
     bool contains(KeyT &key) {
-        if (tree_search(m_root, key)) {
+        if (find(m_root, key)) {
             return true;
         } else {
             return false;
@@ -173,9 +390,7 @@ public:
             }
         }
 
-        if (m_log) {
-            dump_to_graphviz();
-        }
+        dump_to_graphviz();
     }
     // Move constructor
     RedBlackTree(RedBlackTree &&rhs) {
@@ -207,6 +422,7 @@ public:
                 curr_node = curr_node->get_right();
             } else {
                 if (curr_node == m_root) {
+                    delete curr_node;
                     break;
                 } else {
                     Node *parent = curr_node->get_parent();
@@ -226,6 +442,10 @@ public:
     void enable_log() { m_log = true; }
 
     void dump_to_graphviz() {
+        if (!m_log) {
+            return;
+        }
+
         std::string log_num = std::to_string(m_log_cnt);
         std::string graphviz_name(log_num + ".dot");
         std::string picture_name(log_num + ".png");
@@ -238,7 +458,9 @@ public:
             << m_root << "}\"]\n";
 
         uint64_t counter = 1;
-        m_root->dump_to_graphviz(counter, log);
+        if (m_root) {
+            m_root->dump_to_graphviz(counter, log);
+        }
 
         log << '}';
         std::string src("dot -Tpng " + graphviz_name + " -o " + picture_name);
