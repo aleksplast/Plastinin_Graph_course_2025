@@ -5,9 +5,6 @@
 
 namespace Task1 {
 
-const std::string GREY = "grey";
-const std::string RED = "red";
-
 // Colour of the TreeNode
 enum class Color {
     Red,
@@ -16,7 +13,7 @@ enum class Color {
 
 // Node of the RedBlackTree
 template <typename KeyT>
-class TreeNode {
+class TreeNode final {
 private:
     // Value hold in the node
     KeyT m_key;
@@ -45,20 +42,11 @@ public:
     // Get parent of the node
     TreeNode *get_parent() const { return m_parent; }
     // Set right child of the node
-    void set_right(TreeNode *right) {m_right = right; }
+    void set_right(TreeNode *right) { m_right = right; }
     // Set left child of the node
     void set_left(TreeNode *left) { m_left = left; }
     // Set parent of the node
     void set_parent(TreeNode *parent) { m_parent = parent; }
-
-    const std::string &color_to_string(Color &color) {
-        switch(color) {
-            case Color::Red:
-                return RED;
-            case Color::Black:
-                return GREY;
-        }
-    }
 
     // TreeNode constructor
     TreeNode(const KeyT &key = 0, TreeNode<KeyT> *parent = nullptr,
@@ -70,6 +58,20 @@ public:
     TreeNode(const TreeNode *other)
     : m_color(other->m_color), m_key(other->m_key) {}
 
+    // Get height of the node
+    // TODO: change this to constant time computations (class member)
+    uint64_t get_black_height() {
+        uint64_t height = 0;
+        TreeNode *curr_node = this;
+        while(curr_node) {
+            if (curr_node->m_color == Color::Black) {
+                height += 1;
+            }
+            curr_node = curr_node->m_left;
+        }
+
+        return height;
+    }
     // Copy data from other node
     void copy_data(const TreeNode *other) {
         m_color = other->m_color;
@@ -90,9 +92,10 @@ public:
             num_right = m_right->dump_to_graphviz(counter, log);
         }
 
+        std::string color_str = m_color == Color::Red ? "Red" : "Grey";
         log << "\t\"node" << counter
             << "\" [shape = \"circle\", style = \"filled\", fillcolor = \""
-            << color_to_string(m_color) << "\", label = \""
+            << color_str << "\", label = \""
             << m_key << "\"]\n";
 
         if (m_left) {

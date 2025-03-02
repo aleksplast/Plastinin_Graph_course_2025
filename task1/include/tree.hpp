@@ -2,20 +2,22 @@
 
 #include "node.hpp"
 
+#include <cstddef>
 #include <fstream>
 #include <functional>
+#include <thread>
+#include <tuple>
 
 namespace Task1 {
 
 // Class, representing RedBlackTree
-template <typename KeyT>
-class RedBlackTree {
+template <typename KeyT, typename Comparator = std::less<KeyT>>
+class RedBlackTree final {
     using Node = TreeNode<KeyT>;
-    using comparator = std::less<KeyT>;
 
 public:
     // Default constructor
-    RedBlackTree(){};
+    RedBlackTree() = default;
     // Copy constructor
     RedBlackTree(const RedBlackTree &rhs);
     // Move constructor
@@ -23,7 +25,7 @@ public:
     // Copy assignment
     RedBlackTree &operator=(const RedBlackTree &rhs);
     // Move assignment
-    RedBlackTree &operator=(const RedBlackTree &&rhs);
+    RedBlackTree &operator=(RedBlackTree &&rhs);
     // Destructor
     ~RedBlackTree();
 
@@ -35,7 +37,9 @@ private:
     // File with log
     bool m_log = false;
     // Log file counter
-    uint64_t m_log_cnt = 0;
+    uint64_t m_log_cnt;
+    // Log file name
+    std::string m_log_name = "";
 
     // Rotate RedBlackTree right around given node
     void rotate_right(Node *node);
@@ -44,13 +48,13 @@ private:
 
     // Find minimum of the tree
     // node - root of the tree
-    Node *minimum(Node *node);
+    Node *minimum(Node *node) const;
 
     // Get successor of the given node
-    Node *successor(Node *node);
+    Node *successor(Node *node) const;
 
     // Finds Node with key in the tree
-    Node *find(Node *node, KeyT &key);
+    Node *find(Node *node, KeyT &key) const;
 
     // Fixup RedBlackTree after fixup
     // node - node, that was inserted
@@ -58,6 +62,19 @@ private:
     // Fixup after erasing node
     // node - child of the successor of the deleted node
     void erase_fixup(Node *node);
+
+    std::tuple<TreeNode<KeyT> *, bool, TreeNode<KeyT> *>
+    split(Node *node, const KeyT &key);
+
+    Node *join_right(Node *left_root, const KeyT &key, Node *right);
+
+    Node *join_left(Node *left_root, const KeyT &key, Node *right);
+
+    Node *join(Node *left, const KeyT &key, Node *right);
+
+    Node *merge(Node *left, Node *right);
+
+    void dump_to_graphviz(Node *node);
 
 public:
     // Insert value into the RedBlackTree
@@ -67,14 +84,15 @@ public:
     // Erase node from the tree
     void erase(Node *node);
 
-    Node *find(KeyT &key);
+    Node *find(KeyT &key) const;
     // Check, if tree containts given key
-    bool contains(KeyT &key);
+    bool contains(KeyT &key) const;
 
     // Join another tree into this
     void join(RedBlackTree &other);
     // Split the tree by the given key
-    void split(KeyT &key);
+    // Destroyts tree, returning two trees instead
+    std::pair<RedBlackTree, RedBlackTree> split(const KeyT &key);
     // Merge one tree into another
     void merge(RedBlackTree &other);
 
@@ -82,10 +100,12 @@ public:
     void enable_log() { m_log = true; }
     // Dump current state of the tree to graphviz and generate png
     void dump_to_graphviz();
+    // Set log files to start with log_name
+    void set_log_name(std::string &log_name) { m_log_name = log_name; }
 }; // class RedBlackTree
 
-template <typename KeyT>
-void RedBlackTree<KeyT>::rotate_right(Node *node) {
+template <typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::rotate_right(Node *node) {
     if (!node || !node->get_left()) {
         return;
     }
@@ -113,8 +133,8 @@ void RedBlackTree<KeyT>::rotate_right(Node *node) {
     dump_to_graphviz();
 }
 
-template <typename KeyT>
-void RedBlackTree<KeyT>::rotate_left(Node *node) {
+template <typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::rotate_left(Node *node) {
     if (!node || !node->get_right()) {
         return;
     }
@@ -141,8 +161,8 @@ void RedBlackTree<KeyT>::rotate_left(Node *node) {
     dump_to_graphviz();
 }
 
-template <typename KeyT>
-TreeNode<KeyT> *RedBlackTree<KeyT>::minimum(Node *node) {
+template <typename KeyT, typename Comparator>
+TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::minimum(Node *node) const {
     while (node->get_left()) {
         node = node->get_left();
     }
@@ -150,8 +170,8 @@ TreeNode<KeyT> *RedBlackTree<KeyT>::minimum(Node *node) {
     return node;
 }
 
-template <typename KeyT>
-TreeNode<KeyT> *RedBlackTree<KeyT>::successor(Node *node) {
+template <typename KeyT, typename Comparator>
+TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::successor(Node *node) const {
     if (node->get_right()) {
         return minimum(node->get_right());
     }
@@ -165,19 +185,19 @@ TreeNode<KeyT> *RedBlackTree<KeyT>::successor(Node *node) {
     return parent;
 }
 
-template <typename KeyT>
-TreeNode<KeyT> *RedBlackTree<KeyT>::find(Node *node, KeyT &key) {
+template <typename KeyT, typename Comparator>
+TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::find(Node *node, KeyT &key) const {
     if (node == nullptr || key == node->get_key()) {
         return node;
-    } else if (comparator()(key, node->get_key())) {
+    } else if (Comparator()(key, node->get_key())) {
         return find(node->get_left(), key);
     } else {
         return find(node->get_right(), key);
     }
 }
 
-template <typename KeyT>
-void RedBlackTree<KeyT>::insert_fixup(Node *node) {
+template <typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::insert_fixup(Node *node) {
     if (node == m_root) {
         node->set_color(Color::Black);
         return;
@@ -237,8 +257,8 @@ void RedBlackTree<KeyT>::insert_fixup(Node *node) {
     m_root->set_color(Color::Black);
 }
 
-template <typename KeyT>
-void RedBlackTree<KeyT>::erase_fixup(Node *node) {
+template <typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::erase_fixup(Node *node) {
     while (node && node != m_root && node->get_color() == Color::Black) {
         Node *parent = node->get_parent();
         if (node == parent->get_left()) {
@@ -307,15 +327,15 @@ void RedBlackTree<KeyT>::erase_fixup(Node *node) {
     }
 }
 
-template <typename KeyT>
-void RedBlackTree<KeyT>::insert(const KeyT &key) {
+template <typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::insert(const KeyT &key) {
     Node *new_node = new Node(key);
     Node *parent = nullptr;
     Node *curr_node = m_root;
 
     while (curr_node) {
         parent = curr_node;
-        if (comparator()(new_node->get_key(), curr_node->get_key())) {
+        if (Comparator()(new_node->get_key(), curr_node->get_key())) {
             curr_node = curr_node->get_left();
         } else {
             curr_node = curr_node->get_right();
@@ -326,7 +346,7 @@ void RedBlackTree<KeyT>::insert(const KeyT &key) {
 
     if (!parent) {
         m_root = new_node;
-    } else if (comparator()(new_node->get_key(), parent->get_key())) {
+    } else if (Comparator()(new_node->get_key(), parent->get_key())) {
         parent->set_left(new_node);
     } else {
         parent->set_right(new_node);
@@ -341,8 +361,8 @@ void RedBlackTree<KeyT>::insert(const KeyT &key) {
     dump_to_graphviz();
 }
 
-template <typename KeyT>
-void RedBlackTree<KeyT>::erase(KeyT &key) {
+template <typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::erase(KeyT &key) {
     Node *node = find(key);
 
     if (!node) {
@@ -351,8 +371,8 @@ void RedBlackTree<KeyT>::erase(KeyT &key) {
     erase(node);
 }
 
-template <typename KeyT>
-void RedBlackTree<KeyT>::erase(Node *node) {
+template <typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::erase(Node *node) {
     Node *succ = nullptr;
     Node *succ_child = nullptr;
     if (!node->get_left() || !node->get_right()) {
@@ -396,13 +416,13 @@ void RedBlackTree<KeyT>::erase(Node *node) {
     dump_to_graphviz();
 }
 
-template <typename KeyT>
-TreeNode<KeyT> *RedBlackTree<KeyT>::find(KeyT &key) {
+template <typename KeyT, typename Comparator>
+TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::find(KeyT &key) const {
     return find(m_root, key);
 }
 
-template <typename KeyT>
-bool RedBlackTree<KeyT>::contains(KeyT &key) {
+template <typename KeyT, typename Comparator>
+bool RedBlackTree<KeyT, Comparator>::contains(KeyT &key) const {
     if (find(m_root, key)) {
         return true;
     } else {
@@ -410,8 +430,190 @@ bool RedBlackTree<KeyT>::contains(KeyT &key) {
     }
 }
 
-template <typename KeyT>
-RedBlackTree<KeyT>::RedBlackTree(const RedBlackTree &rhs) {
+template <typename KeyT, typename Comparator>
+TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_right(Node *left, const KeyT &key, Node *right) {
+    if (!left) {
+        return new Node (key, nullptr, left, right, Color::Red);
+    }
+    if (left->get_color() == Color::Black && left->get_black_height() == right->get_black_height()) {
+        return new Node(key, left->get_parent(), left, right, Color::Red);
+    }
+
+    Node *new_node = new Node(left->get_key(), left->get_parent(), left->get_left(), join_right(left->get_right(), key, right), left->get_color());
+    if (!new_node->get_right() || !new_node->get_right()->get_right()) {
+        return new_node;
+    }
+    if (left->get_color() == Color::Black && new_node->get_right()->get_color() == new_node->get_right()->get_right()->get_color()
+        && new_node->get_right()->get_color() == Color::Red) {
+        new_node->get_right()->get_right()->set_color(Color::Black);
+        rotate_left(new_node);
+        return new_node->get_parent();
+    }
+
+    return new_node;
+}
+
+template <typename KeyT, typename Comparator>
+TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_left(Node *left, const KeyT &key, Node *right) {
+    if (!left) {
+        return new Node (key, nullptr, left, right, Color::Red);
+    }
+    if (left->get_color() == Color::Black && left->get_black_height() == right->get_black_height()) {
+        return new Node(key, left->get_parent(), left, right, Color::Red);
+    }
+
+    Node *new_node = new Node(left->get_key(), left->get_parent(), join_left(left->get_left(), key, right), left->get_right(), left->get_color());
+    if (!new_node->get_right() || !new_node->get_left()->get_left()) {
+        return new_node;
+    }
+    if (left->get_color() == Color::Black && new_node->get_left()->get_color() == new_node->get_left()->get_left()->get_color()
+        && new_node->get_left()->get_color() == Color::Red) {
+        new_node->get_left()->get_left()->set_color(Color::Black);
+        rotate_right(new_node);
+        return new_node->get_parent();
+    }
+
+    return new_node;
+}
+
+template <typename KeyT, typename Comparator>
+TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join(Node *left, const KeyT &key, Node *right) {
+    if (!left && !right) {
+        return new Node (key, nullptr, left, right, Color::Red);
+    } else if (!left) {
+        return new Node (key, nullptr, left, right, Color::Red);
+    }
+    if (right && left->get_black_height() > right->get_black_height()) {
+        Node *new_node = join_right(left, key, right);
+
+        if (new_node->get_color() == Color::Red && new_node->get_right()->get_color() == Color::Red) {
+            new_node->set_color(Color::Black);
+        }
+
+        Node *parent = left->get_parent();
+        if (!parent) {
+        } else if (left->get_parent()->get_left() == left) {
+            left->get_parent()->set_left(new_node);
+        } else if (left->get_parent()->get_right() == left) {
+            left->get_parent()->set_right(new_node);
+        }
+        left->set_parent(new_node);
+        right->set_parent(new_node);
+        return new_node;
+    } else if (right && left->get_black_height() < right->get_black_height()) {
+        Node *new_node = join_left(left, key, right);
+
+        if (new_node->get_color() == Color::Red && new_node->get_left()->get_color() == Color::Red) {
+            new_node->set_color(Color::Black);
+        }
+
+        Node *parent = left->get_parent();
+        if (!parent) {
+        } else if (left->get_parent()->get_left() == left) {
+            left->get_parent()->set_left(new_node);
+        } else if (left->get_parent()->get_right() == left) {
+            left->get_parent()->set_right(new_node);
+        }
+        left->set_parent(new_node);
+        right->set_parent(new_node);
+        return new_node;
+    } else if (right && left->get_color() == Color::Black && right->get_color() == Color::Black) {
+        Node *new_node = new Node(key, left->get_parent(), left, right, Color::Black);
+        Node *parent = left->get_parent();
+        if (!parent) {
+        } else if (parent->get_left() == left) {
+            parent->set_left(new_node);
+        } else if (left->get_parent()->get_right() == left) {
+            parent->set_right(new_node);
+        }
+        left->set_parent(new_node);
+        right->set_parent(new_node);
+        return new_node;
+    }
+    Node *new_node = new Node(key, left->get_parent(), left, right, Color::Black);
+    Node *parent = left->get_parent();
+    if (!parent) {
+    } else if (left->get_parent()->get_left() == left) {
+        left->get_parent()->set_left(new_node);
+    } else if (left->get_parent()->get_right() == left) {
+        left->get_parent()->set_right(new_node);
+    }
+    left->set_parent(new_node);
+    if (right) {
+        right->set_parent(new_node);
+    }
+
+    return new_node;
+}
+
+template <typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::merge(RedBlackTree &other) {
+    m_root = merge(m_root, other.m_root);
+
+    dump_to_graphviz();
+}
+
+template <typename KeyT, typename Comparator>
+TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::merge(Node *left, Node *right) {
+    if (!left) {
+        return right;
+    } else if (!right) {
+        return left;
+    }
+
+    std::tuple<Node *, bool, Node*> split_res = split(left, right->get_key());
+    dump_to_graphviz(std::get<0>(split_res));
+    dump_to_graphviz(std::get<2>(split_res));
+    Node *new_left = merge(std::get<0>(split_res), right->get_left());
+    Node *new_right = merge(std::get<2>(split_res), right->get_right());
+
+    return join(new_left, right->get_key(), new_right);
+}
+
+template <typename KeyT, typename Comparator>
+std::pair<RedBlackTree<KeyT, Comparator>, RedBlackTree<KeyT, Comparator>>
+RedBlackTree<KeyT, Comparator>::split(const KeyT &key) {
+    std::tuple<Node *, bool, Node *> result = split(m_root, key);
+    // TODO: add split error handling
+
+    RedBlackTree left_tree;
+    RedBlackTree right_tree;
+
+    left_tree.m_root = std::get<0>(result);
+    right_tree.m_root = std::get<2>(result);
+    // TODO: implement size and log and height update
+
+    return std::pair<RedBlackTree, RedBlackTree> (left_tree, right_tree);
+}
+
+template <typename KeyT, typename Comparator>
+std::tuple<TreeNode<KeyT> *, bool, TreeNode<KeyT> *>
+RedBlackTree<KeyT, Comparator>::split(Node *node, const KeyT &key) {
+    if (!node) {
+        return std::tuple<Node *, bool, Node *> {nullptr, false, nullptr};
+    }
+    if (key == node->get_key()) {
+        return std::tuple<Node *, bool, Node *> {node->get_left(), true, node->get_right()};
+    }
+
+    if (Comparator()(key, node->get_key())) {
+        std::tuple<Node *, bool, Node *> temp_split = split(node->get_left(), key);
+        Node *left = std::get<0>(temp_split);
+        bool success = std::get<1>(temp_split);
+        Node *right = std::get<2>(temp_split);
+        auto result = std::make_tuple(left, success, join(right, node->get_key(), node->get_right()));
+        return result;
+    }
+
+    std::tuple<Node *, bool, Node *> temp_split = split(node->get_right(), key);
+    Node *left = std::get<0>(temp_split);
+    bool success = std::get<1>(temp_split);
+    Node *right = std::get<2>(temp_split);
+    auto result = std::make_tuple(join(node->get_left(), node->get_key(), left), success, right);
+    return result;
+}
+template <typename KeyT, typename Comparator>
+RedBlackTree<KeyT, Comparator>::RedBlackTree(const RedBlackTree &rhs) {
     m_root = new Node(rhs.m_root);
     m_size = rhs.m_size;
 
@@ -452,30 +654,30 @@ RedBlackTree<KeyT>::RedBlackTree(const RedBlackTree &rhs) {
     dump_to_graphviz();
 }
 
-template <typename KeyT>
-RedBlackTree<KeyT>::RedBlackTree(RedBlackTree &&rhs) {
+template <typename KeyT, typename Comparator>
+RedBlackTree<KeyT, Comparator>::RedBlackTree(RedBlackTree &&rhs) {
     std::swap(m_root, rhs.m_root);
     std::swap(m_root, rhs.m_size);
 }
 
-template <typename KeyT>
-RedBlackTree<KeyT> &RedBlackTree<KeyT>::operator=(const RedBlackTree &rhs) {
-    RedBlackTree<KeyT> temp(rhs);
+template <typename KeyT, typename Comparator>
+RedBlackTree<KeyT, Comparator> &RedBlackTree<KeyT, Comparator>::operator=(const RedBlackTree &rhs) {
+    RedBlackTree<KeyT, Comparator> temp(rhs);
     *this = std::move(rhs);
 
     return *this;
 }
 
-template <typename KeyT>
-RedBlackTree<KeyT> &RedBlackTree<KeyT>::operator=(const RedBlackTree &&rhs) {
+template <typename KeyT, typename Comparator>
+RedBlackTree<KeyT, Comparator> &RedBlackTree<KeyT, Comparator>::operator=(RedBlackTree &&rhs) {
     std::swap(m_root, rhs.m_root);
     std::swap(m_root, rhs.m_size);
 
     return *this;
 }
 
-template <typename KeyT>
-RedBlackTree<KeyT>::~RedBlackTree() {
+template <typename KeyT, typename Comparator>
+RedBlackTree<KeyT, Comparator>::~RedBlackTree() {
     Node *curr_node = m_root;
 
     while (curr_node) {
@@ -502,13 +704,18 @@ RedBlackTree<KeyT>::~RedBlackTree() {
     }
 }
 
-template<typename KeyT>
-void RedBlackTree<KeyT>::dump_to_graphviz() {
+template<typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::dump_to_graphviz() {
+    dump_to_graphviz(m_root);
+}
+
+template<typename KeyT, typename Comparator>
+void RedBlackTree<KeyT, Comparator>::dump_to_graphviz(Node *node) {
     if (!m_log) {
         return;
     }
 
-    std::string log_num = std::to_string(m_log_cnt);
+    std::string log_num = m_log_name + std::to_string(m_log_cnt);
     std::string graphviz_name(log_num + ".dot");
     std::string picture_name(log_num + ".png");
     std::ofstream log(graphviz_name);
@@ -520,8 +727,8 @@ void RedBlackTree<KeyT>::dump_to_graphviz() {
         << m_root << "}\"]\n";
 
     uint64_t counter = 1;
-    if (m_root) {
-        m_root->dump_to_graphviz(counter, log);
+    if (node) {
+        node->dump_to_graphviz(counter, log);
     }
 
     log << '}';
@@ -530,5 +737,4 @@ void RedBlackTree<KeyT>::dump_to_graphviz() {
     m_log_cnt += 1;
     std::system(src.c_str());
 }
-
 } //namespace Task1
