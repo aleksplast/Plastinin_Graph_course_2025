@@ -50,9 +50,16 @@ public:
 
     // TreeNode constructor
     TreeNode(const KeyT &key = 0, TreeNode<KeyT> *parent = nullptr,
-            TreeNode<KeyT> *right = nullptr, TreeNode<KeyT> *left = nullptr,
+            TreeNode<KeyT> *left = nullptr, TreeNode<KeyT> *right = nullptr,
             Color color = Color::Red)
-    : m_key(key), m_right(right), m_left(left), m_parent(parent), m_color(color) {}
+    : m_key(key), m_right(right), m_left(left), m_parent(parent), m_color(color) {
+        if (m_right) {
+            m_right->m_parent = this;
+        }
+        if (m_left) {
+            m_left->m_parent = this;
+        }
+    }
 
     // Constructor, with data from other node
     TreeNode(const TreeNode *other)
@@ -61,13 +68,13 @@ public:
     // Get height of the node
     // TODO: change this to constant time computations (class member)
     uint64_t get_black_height() {
-        uint64_t height = 0;
-        TreeNode *curr_node = this;
+        uint64_t height = 1;
+        TreeNode *curr_node = m_left;
         while(curr_node) {
             if (curr_node->m_color == Color::Black) {
                 height += 1;
             }
-            curr_node = curr_node->m_left;
+            curr_node = curr_node->get_left();
         }
 
         return height;

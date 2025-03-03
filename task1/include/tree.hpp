@@ -2,6 +2,7 @@
 
 #include "node.hpp"
 
+#include <cassert>
 #include <cstddef>
 #include <fstream>
 #include <functional>
@@ -9,6 +10,15 @@
 #include <tuple>
 
 namespace Task1 {
+
+template <typename KeyT>
+TreeNode<KeyT> *left(TreeNode<KeyT> *node) {
+    if (!node) {
+        return nullptr;
+    } else {
+        return node->get_left();
+    }
+}
 
 // Class, representing RedBlackTree
 template <typename KeyT, typename Comparator = std::less<KeyT>>
@@ -75,6 +85,11 @@ private:
     Node *merge(Node *left, Node *right);
 
     void dump_to_graphviz(Node *node);
+
+    uint64_t get_black_height(Node *node);
+
+    bool is_red(Node *node);
+    bool is_black(Node *node);
 
 public:
     // Insert value into the RedBlackTree
@@ -432,19 +447,18 @@ bool RedBlackTree<KeyT, Comparator>::contains(KeyT &key) const {
 
 template <typename KeyT, typename Comparator>
 TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_right(Node *left, const KeyT &key, Node *right) {
-    if (!left) {
-        return new Node (key, nullptr, left, right, Color::Red);
-    }
-    if (left->get_color() == Color::Black && left->get_black_height() == right->get_black_height()) {
-        return new Node(key, left->get_parent(), left, right, Color::Red);
+    std::cout << "join right with key = " << key << '\n';
+    std::cout << "left height = " << get_black_height(left) << '\n';
+    std::cout << "right height = " << get_black_height(right) << '\n';
+    std::cout << "log counter = " << m_log_cnt << '\n';
+    if (is_black(left) && get_black_height(left) == get_black_height(right)) {
+        std::cout << "equal heights in join right\n\n";
+        return new Node(key, nullptr, left, right, Color::Red);
     }
 
-    Node *new_node = new Node(left->get_key(), left->get_parent(), left->get_left(), join_right(left->get_right(), key, right), left->get_color());
-    if (!new_node->get_right() || !new_node->get_right()->get_right()) {
-        return new_node;
-    }
-    if (left->get_color() == Color::Black && new_node->get_right()->get_color() == new_node->get_right()->get_right()->get_color()
-        && new_node->get_right()->get_color() == Color::Red) {
+    assert(left != nullptr);
+    Node *new_node = new Node(left->get_key(), nullptr, left->get_left(), join_right(left->get_right(), key, right), left->get_color());
+    if (is_black(left) && is_red(new_node->get_right()) && is_red(new_node->get_right()->get_right())) {
         new_node->get_right()->get_right()->set_color(Color::Black);
         rotate_left(new_node);
         return new_node->get_parent();
@@ -455,19 +469,12 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_right(Node *left, const Key
 
 template <typename KeyT, typename Comparator>
 TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_left(Node *left, const KeyT &key, Node *right) {
-    if (!left) {
-        return new Node (key, nullptr, left, right, Color::Red);
-    }
-    if (left->get_color() == Color::Black && left->get_black_height() == right->get_black_height()) {
-        return new Node(key, left->get_parent(), left, right, Color::Red);
+    if (is_black(right) && get_black_height(left) == get_black_height(right)) {
+        return new Node(key, nullptr, left, right, Color::Red);
     }
 
-    Node *new_node = new Node(left->get_key(), left->get_parent(), join_left(left->get_left(), key, right), left->get_right(), left->get_color());
-    if (!new_node->get_right() || !new_node->get_left()->get_left()) {
-        return new_node;
-    }
-    if (left->get_color() == Color::Black && new_node->get_left()->get_color() == new_node->get_left()->get_left()->get_color()
-        && new_node->get_left()->get_color() == Color::Red) {
+    Node *new_node = new Node(right->get_key(), nullptr, join_left(left, key, right->get_left()), right->get_right(), right->get_color());
+    if (is_black(right) && is_red(new_node->get_left()) && is_red(new_node->get_left()->get_left())) {
         new_node->get_left()->get_left()->set_color(Color::Black);
         rotate_right(new_node);
         return new_node->get_parent();
@@ -478,71 +485,31 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_left(Node *left, const KeyT
 
 template <typename KeyT, typename Comparator>
 TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join(Node *left, const KeyT &key, Node *right) {
-    if (!left && !right) {
-        return new Node (key, nullptr, left, right, Color::Red);
-    } else if (!left) {
-        return new Node (key, nullptr, left, right, Color::Red);
-    }
-    if (right && left->get_black_height() > right->get_black_height()) {
-        Node *new_node = join_right(left, key, right);
+    std::cout << "joining with key = " << key << '\n';
+    Node *new_node = nullptr;
+    if (get_black_height(left) > get_black_height(right)) {
+        new_node = join_right(left, key, right);
 
-        if (new_node->get_color() == Color::Red && new_node->get_right()->get_color() == Color::Red) {
+        if (is_red(new_node) && is_red(new_node->get_right())) {
+            new_node->set_color(Color::Black);
+        }
+        // dump_to_graphviz(new_node);
+    } else if (get_black_height(left) < get_black_height(right)) {
+        new_node = join_left(left, key, right);
+
+        if (is_red(new_node) && is_red(new_node->get_left())) {
             new_node->set_color(Color::Black);
         }
 
-        Node *parent = left->get_parent();
-        if (!parent) {
-        } else if (left->get_parent()->get_left() == left) {
-            left->get_parent()->set_left(new_node);
-        } else if (left->get_parent()->get_right() == left) {
-            left->get_parent()->set_right(new_node);
-        }
-        left->set_parent(new_node);
-        right->set_parent(new_node);
-        return new_node;
-    } else if (right && left->get_black_height() < right->get_black_height()) {
-        Node *new_node = join_left(left, key, right);
-
-        if (new_node->get_color() == Color::Red && new_node->get_left()->get_color() == Color::Red) {
-            new_node->set_color(Color::Black);
-        }
-
-        Node *parent = left->get_parent();
-        if (!parent) {
-        } else if (left->get_parent()->get_left() == left) {
-            left->get_parent()->set_left(new_node);
-        } else if (left->get_parent()->get_right() == left) {
-            left->get_parent()->set_right(new_node);
-        }
-        left->set_parent(new_node);
-        right->set_parent(new_node);
-        return new_node;
-    } else if (right && left->get_color() == Color::Black && right->get_color() == Color::Black) {
-        Node *new_node = new Node(key, left->get_parent(), left, right, Color::Black);
-        Node *parent = left->get_parent();
-        if (!parent) {
-        } else if (parent->get_left() == left) {
-            parent->set_left(new_node);
-        } else if (left->get_parent()->get_right() == left) {
-            parent->set_right(new_node);
-        }
-        left->set_parent(new_node);
-        right->set_parent(new_node);
-        return new_node;
-    }
-    Node *new_node = new Node(key, left->get_parent(), left, right, Color::Black);
-    Node *parent = left->get_parent();
-    if (!parent) {
-    } else if (left->get_parent()->get_left() == left) {
-        left->get_parent()->set_left(new_node);
-    } else if (left->get_parent()->get_right() == left) {
-        left->get_parent()->set_right(new_node);
-    }
-    left->set_parent(new_node);
-    if (right) {
-        right->set_parent(new_node);
+        // dump_to_graphviz(new_node);
+    } else if (left && right && is_black(left) && is_black(right)) {
+        new_node = new Node(key, nullptr, left, right, Color::Red);
+        // dump_to_graphviz(new_node);
+    } else {
+        new_node = new Node(key, nullptr, left, right, Color::Black);
     }
 
+    // dump_to_graphviz(new_node);
     return new_node;
 }
 
@@ -570,18 +537,17 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::merge(Node *left, Node *right) {
     return join(new_left, right->get_key(), new_right);
 }
 
+
 template <typename KeyT, typename Comparator>
 std::pair<RedBlackTree<KeyT, Comparator>, RedBlackTree<KeyT, Comparator>>
 RedBlackTree<KeyT, Comparator>::split(const KeyT &key) {
     std::tuple<Node *, bool, Node *> result = split(m_root, key);
-    // TODO: add split error handling
 
     RedBlackTree left_tree;
     RedBlackTree right_tree;
 
     left_tree.m_root = std::get<0>(result);
     right_tree.m_root = std::get<2>(result);
-    // TODO: implement size and log and height update
 
     return std::pair<RedBlackTree, RedBlackTree> (left_tree, right_tree);
 }
@@ -612,6 +578,34 @@ RedBlackTree<KeyT, Comparator>::split(Node *node, const KeyT &key) {
     auto result = std::make_tuple(join(node->get_left(), node->get_key(), left), success, right);
     return result;
 }
+
+template <typename KeyT, typename Comparator>
+uint64_t RedBlackTree<KeyT, Comparator>::get_black_height(Node *node) {
+    if (!node) {
+        return 0;
+    } else {
+        return node->get_black_height();
+    }
+}
+
+template <typename KeyT, typename Comparator>
+bool RedBlackTree<KeyT, Comparator>::is_red(Node *node) {
+    if (!node) {
+        return false;
+    } else {
+        return node->get_color() == Color::Red;
+    }
+}
+
+template <typename KeyT, typename Comparator>
+bool RedBlackTree<KeyT, Comparator>::is_black(Node *node) {
+    if (!node) {
+        return true;
+    } else {
+        return node->get_color() == Color::Black;
+    }
+}
+
 template <typename KeyT, typename Comparator>
 RedBlackTree<KeyT, Comparator>::RedBlackTree(const RedBlackTree &rhs) {
     m_root = new Node(rhs.m_root);
