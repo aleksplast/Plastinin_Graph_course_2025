@@ -215,18 +215,21 @@ void RedBlackTree<KeyT, Comparator>::insert_fixup(Node *node) {
         return;
     }
 
-    Node *parent = node->get_parent();
-    while (parent && parent->get_color() == Color::Red) {
+    while (node->get_parent() && node->get_parent()->get_color() == Color::Red) {
+        dump_to_graphviz(node);
+        Node *parent = node->get_parent();
         Node *parent_parent = parent->get_parent();
 
         if (parent_parent->get_left() == parent) {
             Node *parent_parent_right = parent_parent->get_right();
 
-            if (parent_parent_right && parent_parent_right->get_color() == Color::Red) {
+            if (!parent_parent_right && parent_parent_right->get_color() == Color::Red) {
                 parent->set_color(Color::Black);
                 parent_parent_right->set_color(Color::Black);
                 parent_parent->set_color(Color::Red);
                 node = parent_parent;
+                parent = node->get_parent();
+                continue;
             } else if (node == parent->get_right()) {
                 node = parent;
                 rotate_left(node);
@@ -237,6 +240,10 @@ void RedBlackTree<KeyT, Comparator>::insert_fixup(Node *node) {
                 parent->set_color(Color::Black);
                 parent_parent = parent->get_parent();
                 if (parent_parent) {
+                    if (parent_parent->get_right()) {
+                        node = parent_parent->get_right();
+                        parent = parent_parent;
+                    }
                     parent_parent->set_color(Color::Red);
                     rotate_right(parent_parent);
                 }
@@ -249,11 +256,12 @@ void RedBlackTree<KeyT, Comparator>::insert_fixup(Node *node) {
                 parent_parent_left->set_color(Color::Black);
                 parent_parent->set_color(Color::Red);
                 node = parent_parent;
+                parent = node->get_parent();
+                continue;
             } else if (node == parent->get_left()) {
                 node = parent;
                 rotate_right(node);
             }
-
             parent = node->get_parent();
             if (parent) {
                 parent->set_color(Color::Black);
