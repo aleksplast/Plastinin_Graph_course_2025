@@ -216,7 +216,6 @@ void RedBlackTree<KeyT, Comparator>::insert_fixup(Node *node) {
     }
 
     while (node->get_parent() && node->get_parent()->get_color() == Color::Red) {
-        dump_to_graphviz(node);
         Node *parent = node->get_parent();
         Node *parent_parent = parent->get_parent();
 
@@ -290,12 +289,11 @@ void RedBlackTree<KeyT, Comparator>::erase_fixup(Node *node) {
                 parent_right = parent->get_right();
             }
 
-            if (parent_right->get_left() && parent_right->get_left()->get_color() == Color::Black &&
-                parent_right->get_right() && parent_right->get_right()->get_color() == Color::Black) {
+            if (is_black(parent_right->get_left()) && is_black(parent_right->get_right())) {
                 parent_right->set_color(Color::Red);
-                rotate_right(parent_right);
-                parent_right = parent->get_right();
-            } else if (parent_right->get_right() && parent_right->get_right()->get_color() == Color::Black) {
+                node = node->get_parent();
+                continue;
+            } else if (is_black(parent_right->get_right())) {
                 if (parent_right->get_left()) {
                     parent_right->get_left()->set_color(Color::Black);
                 }
@@ -318,22 +316,21 @@ void RedBlackTree<KeyT, Comparator>::erase_fixup(Node *node) {
                 parent_left->set_color(Color::Black);
                 parent->set_color(Color::Red);
                 rotate_right(parent);
-                parent_left = parent->get_right();
+                parent_left = parent->get_left();
             }
 
-            if (parent_left->get_left() && parent_left->get_left()->get_color() == Color::Black &&
-                parent_left->get_right() && parent_left->get_right()->get_color() == Color::Black) {
+            if (is_black(parent_left->get_left()) && is_black(parent_left->get_right())) {
                 parent_left->set_color(Color::Red);
-                rotate_left(parent_left);
-                parent_left = parent->get_right();
-            } else if (parent_left->get_left() && parent_left->get_left()->get_color() == Color::Black) {
+                node = node->get_parent();
+                continue;
+            } else if (is_black(parent_left->get_left())) {
                 if (parent_left->get_right()) {
                     parent_left->get_right()->set_color(Color::Black);
                 }
 
                 parent_left->set_color(Color::Red);
                 rotate_left(parent_left);
-                parent_left = parent->get_right();
+                parent_left = parent->get_left();
             }
 
             parent_left->set_color(parent->get_color());
@@ -395,6 +392,9 @@ template <typename KeyT, typename Comparator>
 void RedBlackTree<KeyT, Comparator>::erase(Node *node) {
     Node *succ = nullptr;
     Node *succ_child = nullptr;
+    Node nil {nullptr, nullptr, nullptr};
+    bool nil_child = false;
+
     if (!node->get_left() || !node->get_right()) {
         succ = node;
     } else {
@@ -403,14 +403,15 @@ void RedBlackTree<KeyT, Comparator>::erase(Node *node) {
 
     if (succ->get_left()) {
         succ_child = succ->get_left();
-    } else {
+    } else if (succ->get_right()) {
         succ_child = succ->get_right();
+    } else {
+        succ_child = &nil;
+        nil_child = true;
     }
 
     Node *succ_parent = succ->get_parent();
-    if (succ_child) {
-        succ_child->set_parent(succ_parent);
-    }
+    succ_child->set_parent(succ_parent);
 
     if (!succ_parent) {
         m_root = succ_child;
@@ -428,6 +429,17 @@ void RedBlackTree<KeyT, Comparator>::erase(Node *node) {
 
     if (succ->get_color() == Color::Black) {
         erase_fixup(succ_child);
+    }
+
+    if (nil_child) {
+        succ_parent = succ_child->get_parent();
+        if (!succ_parent) {
+            m_root = nullptr;
+        } else if (succ_parent->get_left() == succ_child) {
+            succ_parent->set_left(nullptr);
+        } else {
+            succ_parent->set_right(nullptr);
+        }
     }
 
     m_size -= 1;

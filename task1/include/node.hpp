@@ -63,6 +63,9 @@ public:
   TreeNode(const TreeNode *other)
       : m_color(other->m_color), m_key(other->m_key) {}
 
+  TreeNode(TreeNode *left, TreeNode *right, TreeNode *parent)
+      : m_right(right), m_left(left), m_parent(parent), m_color(Color::Black) {}
+
   // Get height of the node
   // TODO: change this to constant time computations (class member)
   uint64_t get_black_height() {
