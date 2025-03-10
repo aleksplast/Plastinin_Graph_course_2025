@@ -1,1 +1,1 @@
-target_sources(red_black_tree PRIVATE main.cpp)
+target_sources(red_black_tree PRIVATE main.cpp side.cpp)

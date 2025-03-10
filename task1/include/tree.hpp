@@ -1,12 +1,11 @@
 #pragma once
 
 #include "node.hpp"
+#include "side.hpp"
 
-#include <cassert>
 #include <cstddef>
 #include <fstream>
 #include <functional>
-#include <tuple>
 
 namespace Task1 {
 
@@ -41,10 +40,8 @@ private:
     // Log file name
     std::string m_log_name = "";
 
-    // Rotate RedBlackTree right around given node
-    void rotate_right(Node *node);
-    // Rotate RedBlackTree left around given node
-    void rotate_left(Node *node);
+    // Rotate RedBlackTree to the given side around given node
+    void rotate(Node *node, Side side);
 
     // Find minimum of the tree
     // node - root of the tree
@@ -63,8 +60,8 @@ private:
     // node - child of the successor of the deleted node
     void erase_fixup(Node *node);
 
-    // Split subtree by the root, contained in key_node
-    std::tuple<TreeNode<KeyT> *, bool, TreeNode<KeyT> *>
+    // Split subtree by the key, contained in key_node
+    std::pair<TreeNode<KeyT> *, TreeNode<KeyT> *>
     split(Node *subroot, Node *key_node);
 
     // Join two subtrees, where height of the left subtree is greater than right subtree
@@ -117,58 +114,28 @@ public:
 }; // class RedBlackTree
 
 template <typename KeyT, typename Comparator>
-void RedBlackTree<KeyT, Comparator>::rotate_right(Node *node) {
-    if (!node || !node->get_left()) {
+void RedBlackTree<KeyT, Comparator>::rotate(Node *node, Side side) {
+    Side opposite_side = opposite(side);
+    if (!node || !node->get_child(opposite_side)) {
         return;
     }
 
-    Node *left = node->get_left();
-    node->set_left(left->get_right());
+    Node *child = node->get_child(opposite_side);
+    node->set_child(child->get_child(side), opposite_side);
 
-    if (left->get_right()) {
-        left->get_right()->set_parent(node);
-    }
     Node *parent = node->get_parent();
-    left->set_parent(parent);
+    child->set_parent(parent);
 
-    if (!parent) {
-        m_root = left;
-    } else if (node == parent->get_left()) {
-        parent->set_left(left);
-    } else {
-        parent->set_right(left);
+    Side node_side = node->get_side();
+    if (node_side == Side::None) {
+        m_root = child;
+        m_root->set_side(Side::None);
     }
 
-    left->set_right(node);
-    node->set_parent(left);
-
-    dump_to_graphviz();
-}
-
-template <typename KeyT, typename Comparator>
-void RedBlackTree<KeyT, Comparator>::rotate_left(Node *node) {
-    if (!node || !node->get_right()) {
-        return;
+    if (parent) {
+        parent->set_child(child, node_side);
     }
-    Node *right = node->get_right();
-    node->set_right(right->get_left());
-
-    if (right->get_left()) {
-        right->get_left()->set_parent(node);
-    }
-    Node *parent = node->get_parent();
-    right->set_parent(parent);
-
-    if (!parent) {
-        m_root = right;
-    } else if (node == parent->get_left()) {
-        parent->set_left(right);
-    } else {
-        parent->set_right(right);
-    }
-
-    right->set_left(node);
-    node->set_parent(right);
+    child->set_child(node, side);
 
     dump_to_graphviz();
 }
@@ -215,133 +182,112 @@ void RedBlackTree<KeyT, Comparator>::insert_fixup(Node *node) {
         return;
     }
 
-    while (node->get_parent() && node->get_parent()->get_color() == Color::Red) {
+    while (is_red(node->get_parent())) {
         Node *parent = node->get_parent();
         Node *parent_parent = parent->get_parent();
 
-        if (parent_parent->get_left() == parent) {
-            Node *parent_parent_right = parent_parent->get_right();
+        Side side = parent->get_side();
+        Side opposite_side = opposite(side);
+        Node *parent_parent_child = parent_parent->get_child(opposite_side);
 
-            if (!parent_parent_right && parent_parent_right->get_color() == Color::Red) {
-                parent->set_color(Color::Black);
-                parent_parent_right->set_color(Color::Black);
-                parent_parent->set_color(Color::Red);
-                node = parent_parent;
-                parent = node->get_parent();
-                continue;
-            } else if (node == parent->get_right()) {
-                node = parent;
-                rotate_left(node);
-            }
+        if (is_red(parent_parent_child)) {
+            parent->set_color(Color::Black);
+            parent_parent_child->set_color(Color::Black);
+            parent_parent->set_color(Color::Red);
+            uint64_t height = parent->get_height();
+            parent->set_height(height + 1);
+            parent_parent_child->set_height(height + 1);
+            node = parent_parent;
+            continue;
+        } else if (node == parent->get_child(opposite_side)) {
+            node = parent;
+            rotate(node, side);
+        }
 
-            parent = node->get_parent();
-            if (parent) {
-                parent->set_color(Color::Black);
-                parent_parent = parent->get_parent();
-                if (parent_parent) {
-                    if (parent_parent->get_right()) {
-                        node = parent_parent->get_right();
-                        parent = parent_parent;
-                    }
-                    parent_parent->set_color(Color::Red);
-                    rotate_right(parent_parent);
+        parent = node->get_parent();
+        if (parent) {
+            parent->set_color(Color::Black);
+            parent->set_height(parent->get_height() + 1);
+            parent_parent = parent->get_parent();
+            if (parent_parent) {
+                if (parent_parent->get_child(opposite_side)) {
+                    node = parent_parent->get_child(opposite_side);
                 }
-            }
-        } else {
-            Node *parent_parent_left = parent_parent->get_left();
-
-            if (parent_parent_left && parent_parent_left->get_color() == Color::Red) {
-                parent->set_color(Color::Black);
-                parent_parent_left->set_color(Color::Black);
                 parent_parent->set_color(Color::Red);
-                node = parent_parent;
-                parent = node->get_parent();
-                continue;
-            } else if (node == parent->get_left()) {
-                node = parent;
-                rotate_right(node);
-            }
-            parent = node->get_parent();
-            if (parent) {
-                parent->set_color(Color::Black);
-                parent_parent = parent->get_parent();
-                if (parent_parent) {
-                    parent_parent->set_color(Color::Red);
-                    rotate_left(parent_parent);
-                }
+                parent_parent->set_height(parent_parent->get_height() - 1);
+                rotate(parent_parent, opposite_side);
+            } else {
+                node = nullptr;
             }
         }
     }
 
-    m_root->set_color(Color::Black);
+    if (is_red(m_root)) {
+        m_root->set_height(m_root->get_height() + 1);
+        m_root->set_color(Color::Black);
+    }
+    m_root->set_side(Side::None);
 }
 
 template <typename KeyT, typename Comparator>
 void RedBlackTree<KeyT, Comparator>::erase_fixup(Node *node) {
-    while (node && node != m_root && node->get_color() == Color::Black) {
+    while (node && node != m_root && is_black(node)) {
         Node *parent = node->get_parent();
-        if (node == parent->get_left()) {
-            Node *parent_right = parent->get_right();
-            if (parent_right->get_color() == Color::Red) {
-                parent_right->set_color(Color::Black);
-                parent->set_color(Color::Red);
-                rotate_left(parent);
-                parent_right = parent->get_right();
-            }
 
-            if (is_black(parent_right->get_left()) && is_black(parent_right->get_right())) {
-                parent_right->set_color(Color::Red);
-                node = node->get_parent();
-                continue;
-            } else if (is_black(parent_right->get_right())) {
-                if (parent_right->get_left()) {
-                    parent_right->get_left()->set_color(Color::Black);
-                }
+        Side side = node->get_side();
+        Side opposite_side = opposite(side);
 
-                parent_right->set_color(Color::Red);
-                rotate_right(parent_right);
-                parent_right = parent->get_right();
-            }
+        Node *parent_child = parent->get_child(opposite_side);
+        if (is_red(parent_child)) {
+            parent_child->set_color(Color::Black);
+            uint64_t parent_child_height = parent->get_height();
+            rotate(parent, side);
+            parent->set_color(Color::Red);
+            parent->set_height(parent_child_height);
+            parent_child->set_height(parent_child_height + 1);
 
-            parent_right->set_color(parent->get_color());
-            parent->set_color(Color::Black);
-            if (parent_right->get_right()) {
-                parent_right->get_right()->set_color(Color::Black);
-            }
-            rotate_left(parent);
-            node = m_root;
-        } else {
-            Node *parent_left = parent->get_left();
-            if (parent_left->get_color() == Color::Red) {
-                parent_left->set_color(Color::Black);
-                parent->set_color(Color::Red);
-                rotate_right(parent);
-                parent_left = parent->get_left();
-            }
-
-            if (is_black(parent_left->get_left()) && is_black(parent_left->get_right())) {
-                parent_left->set_color(Color::Red);
-                node = node->get_parent();
-                continue;
-            } else if (is_black(parent_left->get_left())) {
-                if (parent_left->get_right()) {
-                    parent_left->get_right()->set_color(Color::Black);
-                }
-
-                parent_left->set_color(Color::Red);
-                rotate_left(parent_left);
-                parent_left = parent->get_left();
-            }
-
-            parent_left->set_color(parent->get_color());
-            parent->set_color(Color::Black);
-            if (parent_left->get_left()) {
-                parent_left->get_left()->set_color(Color::Black);
-            }
-            rotate_right(parent);
-            node = m_root;
+            parent = node->get_parent();
+            parent_child = parent->get_child(opposite_side);
         }
+
+        if (is_black(parent_child->get_left()) && is_black(parent_child->get_right())) {
+            if (parent_child->get_color() == Color::Black) {
+                parent_child->set_height(parent_child->get_height() - 1);
+                parent->set_height(parent->get_height() - 1);
+            }
+            parent_child->set_color(Color::Red);
+            node = node->get_parent();
+            continue;
+        } else if (is_black(parent_child->get_child(opposite_side))) {
+            if (parent_child->get_child(side)) {
+                parent_child->get_child(side)->set_color(Color::Black);
+            }
+
+            parent_child->set_color(Color::Red);
+            parent_child->set_height(parent_child->get_height() - 1);
+            rotate(parent_child, opposite_side);
+            parent_child = parent->get_child(opposite_side);
+        }
+
+        parent_child->set_color(parent->get_color());
+        parent->set_color(Color::Black);
+        if (parent_child->get_child(opposite_side)) {
+            if (is_red(parent_child->get_child(opposite_side))) {
+                parent_child->get_child(opposite_side)->set_height(parent_child->get_child(opposite_side)->get_height() + 1);
+            }
+            parent_child->get_child(opposite_side)->set_color(Color::Black);
+        }
+
+        rotate(parent, side);
+        parent->set_height(parent->get_height() - 1);
+        parent_child->set_height(parent_child->get_height() + 1);
+        node = m_root;
     }
+
+    if (is_red(node)) {
+        node->set_height(node->get_height() + 1);
+    }
+    node->set_color(Color::Black);
 }
 
 template <typename KeyT, typename Comparator>
@@ -359,10 +305,10 @@ void RedBlackTree<KeyT, Comparator>::insert(const KeyT &key) {
         }
     }
 
-    new_node->set_parent(parent);
-
     if (!parent) {
         m_root = new_node;
+        m_root->set_side(Side::None);
+        m_root->set_height(1);
     } else if (Comparator()(new_node->get_key(), parent->get_key())) {
         parent->set_left(new_node);
     } else {
@@ -415,10 +361,10 @@ void RedBlackTree<KeyT, Comparator>::erase(Node *node) {
 
     if (!succ_parent) {
         m_root = succ_child;
-    } else if (succ == succ_parent->get_left()) {
-        succ_parent->set_left(succ_child);
+        succ_child->set_side(Side::None);
     } else {
-        succ_parent->set_right(succ_child);
+        Side side = succ->get_side();
+        succ_parent->set_child(succ_child, side);
     }
 
     if (succ != node) {
@@ -435,10 +381,9 @@ void RedBlackTree<KeyT, Comparator>::erase(Node *node) {
         succ_parent = succ_child->get_parent();
         if (!succ_parent) {
             m_root = nullptr;
-        } else if (succ_parent->get_left() == succ_child) {
-            succ_parent->set_left(nullptr);
         } else {
-            succ_parent->set_right(nullptr);
+            Side side =  succ_child->get_side();
+            succ_parent->set_child(nullptr, side);
         }
     }
 
@@ -467,6 +412,7 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_right(Node *left_subroot, N
     if (is_black(left_subroot) && get_black_height(left_subroot) == get_black_height(right_subroot)) {
         key_node->set_childs(left_subroot, right_subroot);
         key_node->set_parent(nullptr);
+        key_node->set_height(get_black_height(left_subroot));
         key_node->set_color(Color::Red);
         return key_node;
     }
@@ -475,10 +421,20 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_right(Node *left_subroot, N
     right_join->set_parent(left_subroot);
     left_subroot->set_right(right_join);
     left_subroot->set_parent(nullptr);
+    left_subroot->set_height(right_join->get_height());
     if (is_black(left_subroot) && is_red(left_subroot->get_right()) && is_red(left_subroot->get_right()->get_right())) {
-        left_subroot->get_right()->get_right()->set_color(Color::Black);
-        rotate_left(left_subroot);
+        Node *left_subroot_right_right = left_subroot->get_right()->get_right();
+        left_subroot_right_right->set_color(Color::Black);
+        left_subroot_right_right->set_height(left_subroot_right_right->get_height() + 1);
+        left_subroot->set_height(left_subroot_right_right->get_height());
+        left_subroot->get_right()->set_height(left_subroot->get_height());
+        rotate(left_subroot, Side::Left);
         return left_subroot->get_parent();
+    }
+    if (is_black(left_subroot)) {
+        left_subroot->set_height(get_black_height(left_subroot->get_left()) + 1);
+    } else {
+        left_subroot->set_height(get_black_height(left_subroot->get_left()));
     }
 
     return left_subroot;
@@ -489,6 +445,7 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_left(Node *left_subroot, No
     if (is_black(right_subroot) && get_black_height(left_subroot) == get_black_height(right_subroot)) {
         key_node->set_childs(left_subroot, right_subroot);
         key_node->set_parent(nullptr);
+        key_node->set_height(get_black_height(left_subroot));
         key_node->set_color(Color::Red);
         return key_node;
     }
@@ -498,11 +455,20 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join_left(Node *left_subroot, No
     right_subroot->set_left(left_subroot_join);
     right_subroot->set_parent(nullptr);
     if (is_black(right_subroot) && is_red(right_subroot->get_left()) && is_red(right_subroot->get_left()->get_left())) {
-        right_subroot->get_left()->get_left()->set_color(Color::Black);
-        rotate_right(right_subroot);
+        Node *right_subroot_left_left = right_subroot->get_left()->get_left();
+        right_subroot_left_left->set_color(Color::Black);
+        right_subroot_left_left->set_height(right_subroot_left_left->get_height() + 1);
+        right_subroot->set_height(right_subroot_left_left->get_height());
+        right_subroot->get_left()->set_height(right_subroot->get_height());
+        rotate(right_subroot, Side::Right);
         return right_subroot->get_parent();
     }
 
+    if (is_black(right_subroot)) {
+        right_subroot->set_height(get_black_height(right_subroot->get_left()) + 1);
+    } else {
+        right_subroot->set_height(get_black_height(right_subroot->get_left()));
+    }
     return right_subroot;
 }
 
@@ -512,6 +478,7 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join(Node *left_subroot, Node *k
         Node *new_sub_root = join_right(left_subroot, key_node, right_subroot);
 
         if (is_red(new_sub_root) && is_red(new_sub_root->get_right())) {
+            new_sub_root->set_height(new_sub_root->get_right()->get_height() + 1);
             new_sub_root->set_color(Color::Black);
         }
         return new_sub_root;
@@ -519,22 +486,21 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::join(Node *left_subroot, Node *k
         Node *new_sub_root = join_left(left_subroot, key_node, right_subroot);
 
         if (is_red(new_sub_root) && is_red(new_sub_root->get_left())) {
+            new_sub_root->set_height(new_sub_root->get_left()->get_height() + 1);
             new_sub_root->set_color(Color::Black);
         }
         return new_sub_root;
     } else if (left_subroot && right_subroot && is_black(left_subroot) && is_black(right_subroot)) {
         key_node->set_childs(left_subroot, right_subroot);
         key_node->set_color(Color::Red);
+        key_node->set_height(left_subroot->get_height());
         key_node->set_parent(nullptr);
         return key_node;
     }
 
-    if (left_subroot && right_subroot && left_subroot->get_color() != right_subroot->get_color()) {
-        left_subroot->set_color(Color::Black);
-        right_subroot->set_color(Color::Black);
-    }
     key_node->set_childs(left_subroot, right_subroot);
     key_node->set_color(Color::Black);
+    key_node->set_height(get_black_height(left_subroot) + 1);
     key_node->set_parent(nullptr);
     return key_node;
 }
@@ -556,11 +522,9 @@ TreeNode<KeyT> *RedBlackTree<KeyT, Comparator>::merge(Node *left_subroot, Node *
         return left_subroot;
     }
 
-    std::tuple<Node *, bool, Node*> split_res = split(left_subroot, right_subroot);
-    dump_to_graphviz(std::get<0>(split_res));
-    dump_to_graphviz(std::get<2>(split_res));
-    Node *new_left = merge(std::get<0>(split_res), right_subroot->get_left());
-    Node *new_right = merge(std::get<2>(split_res), right_subroot->get_right());
+    auto [left_tmp_root, right_tmp_root] = split(left_subroot, right_subroot);
+    Node *new_left = merge(left_tmp_root, right_subroot->get_left());
+    Node *new_right = merge(right_tmp_root, right_subroot->get_right());
 
     return join(new_left, right_subroot, new_right);
 }
@@ -570,43 +534,37 @@ template <typename KeyT, typename Comparator>
 std::pair<RedBlackTree<KeyT, Comparator>, RedBlackTree<KeyT, Comparator>>
 RedBlackTree<KeyT, Comparator>::split(const KeyT &key) {
     Node key_node{key};
-    std::tuple<Node *, bool, Node *> result = split(m_root, &key_node);
+    auto [left_root, right_root] = split(m_root, &key_node);
 
     RedBlackTree left_tree;
     RedBlackTree right_tree;
 
-    left_tree.m_root = std::get<0>(result);
-    right_tree.m_root = std::get<2>(result);
+    left_tree.m_root = left_root;
+    left_tree.m_root->set_side(Side::None);
+    right_tree.m_root = right_root;
+    right_tree.m_root->set_side(Side::None);
 
     return std::pair<RedBlackTree, RedBlackTree> (left_tree, right_tree);
 }
 
 template <typename KeyT, typename Comparator>
-std::tuple<TreeNode<KeyT> *, bool, TreeNode<KeyT> *>
+std::pair<TreeNode<KeyT> *, TreeNode<KeyT> *>
 RedBlackTree<KeyT, Comparator>::split(Node *subroot, Node *key_node) {
     const KeyT &key = key_node->get_key();
     if (!subroot) {
-        return std::tuple<Node *, bool, Node *> {nullptr, false, nullptr};
+        return {nullptr, nullptr};
     }
     if (key_node->get_key() == subroot->get_key()) {
-        return std::tuple<Node *, bool, Node *> {subroot->get_left(), true, subroot->get_right()};
+        return {subroot->get_left(), subroot->get_right()};
     }
 
     if (Comparator()(key, subroot->get_key())) {
-        std::tuple<Node *, bool, Node *> temp_split = split(subroot->get_left(), key_node);
-        Node *left = std::get<0>(temp_split);
-        bool success = std::get<1>(temp_split);
-        Node *right = std::get<2>(temp_split);
-        auto result = std::make_tuple(left, success, join(right, subroot, subroot->get_right()));
-        return result;
+        auto [left_tmp_root, right_tmp_root] = split(subroot->get_left(), key_node);
+        return {left_tmp_root, join(right_tmp_root, subroot, subroot->get_right())};
     }
 
-    std::tuple<Node *, bool, Node *> temp_split = split(subroot->get_right(), key_node);
-    Node *left = std::get<0>(temp_split);
-    bool success = std::get<1>(temp_split);
-    Node *right = std::get<2>(temp_split);
-    auto result = std::make_tuple(join(subroot->get_left(), subroot, left), success, right);
-    return result;
+    auto [left_tmp_root, right_tmp_root] = split(subroot->get_right(), key_node);
+    return {join(subroot->get_left(), subroot, left_tmp_root), right_tmp_root};
 }
 
 template <typename KeyT, typename Comparator>
@@ -614,7 +572,7 @@ uint64_t RedBlackTree<KeyT, Comparator>::get_black_height(Node *node) {
     if (!node) {
         return 0;
     } else {
-        return node->get_black_height();
+        return node->get_height();
     }
 }
 
@@ -639,6 +597,7 @@ bool RedBlackTree<KeyT, Comparator>::is_black(Node *node) {
 template <typename KeyT, typename Comparator>
 RedBlackTree<KeyT, Comparator>::RedBlackTree(const RedBlackTree &rhs) {
     m_root = new Node(rhs.m_root);
+    m_root->set_side(Side::None);
     m_size = rhs.m_size;
 
     Node *curr = m_root;
