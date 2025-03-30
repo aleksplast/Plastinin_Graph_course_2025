@@ -26,9 +26,16 @@ class Johnson<DirectedGraph<T>> {
 
 private:
     std::unordered_map<Index, JohnsonVertexInfo> m_johnson_info;
-public:
+    bool m_has_negative_cycle = false;
 
+public:
     Johnson(DirectedGraph<T> &graph) {
+        for (auto &[idx, val]: graph.get_vertices()) {
+            for (auto &[other_idx, other_val]: graph.get_vertices()) {
+                m_johnson_info[idx].path_weights[other_idx];
+            }
+        }
+
         T fict_vert;
         Index fict_idx = graph.insert_vertice(fict_vert);
 
@@ -42,11 +49,12 @@ public:
 
         BellmanFord<DirectedGraph<T>> bellman_ford(graph, fict_idx);
         if (bellman_ford.has_negative_cycle()) {
+            m_has_negative_cycle = true;
             return;
         }
 
         for (auto &[idx, val]: graph.get_vertices()) {
-            m_johnson_info.insert({idx, bellman_ford.get_path_weight(idx)});
+            m_johnson_info[idx].h = bellman_ford.get_path_weight(idx);
         }
 
         for (auto &[edge, weight]: graph.get_edges()) {
@@ -70,6 +78,10 @@ public:
 
     Weight get_shortest_path(const Index src, const Index dest) const {
         return m_johnson_info.at(src).path_weights.at(dest);
+    }
+
+    bool has_negative_cycle() const {
+        return m_has_negative_cycle;
     }
 };
 

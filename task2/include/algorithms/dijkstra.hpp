@@ -6,7 +6,6 @@
 #include <boost/heap/fibonacci_heap.hpp>
 #include <boost/heap/policies.hpp>
 #include <unordered_map>
-#include <iostream>
 
 namespace Algorithms {
 
@@ -34,7 +33,6 @@ public:
     Dijktra(const DirectedGraph<T> &graph, Index source) :
     SSSP<DirectedGraph<T>>(graph, source) {
         Queue work_queue;
-        std::cout << "source_idx = " << source << '\n';
         std::unordered_map<Index, Handle> handles;
         handles.reserve(graph.n_vertices());
 
