@@ -33,7 +33,7 @@ struct EdgeHash final {
 using Predecessor = std::optional<Index>;
 
 // Weight of the edge
-struct Weight {
+struct Weight final {
     std::optional<int> m_val;
 
     Weight(int val) : m_val(val) {}

@@ -17,7 +17,9 @@ template <typename T>
 class Johnson<DirectedGraph<T>> {
     struct JohnsonVertexInfo {
         // TODO: think of meaningfull name
+        // Value for calculating new weights
         Weight h;
+        // Shortest path weight
         std::unordered_map<Index, Weight> path_weights;
 
         JohnsonVertexInfo(Weight new_h) : h(new_h) {}
@@ -25,11 +27,13 @@ class Johnson<DirectedGraph<T>> {
     };
 
 private:
+    // Info about shortest path collected by Johnson algo
     std::unordered_map<Index, JohnsonVertexInfo> m_johnson_info;
+    // Flag indicating if graph has negative cycle
     bool m_has_negative_cycle = false;
 
 public:
-    Johnson(DirectedGraph<T> &graph) {
+    Johnson(const DirectedGraph<T> &graph) {
         for (auto &[idx, val]: graph.get_vertices()) {
             for (auto &[other_idx, other_val]: graph.get_vertices()) {
                 m_johnson_info[idx].path_weights[other_idx];
