@@ -23,7 +23,7 @@ private:
     // Adjacency list for each vertex
     std::unordered_map<Index, std::unordered_set<Index>> m_adjacency_lists;
     // Weight map of the graph
-    std::unordered_map<Edge, Weight, EdgeHash> m_edge_weights;
+    std::unordered_map<Edge, Weight> m_edge_weights;
     // Index to be assigned to the next inserted vertex
     Index next_idx = 0;
 
@@ -44,16 +44,18 @@ public:
 
     // Insert vertex into the graph
     Index insert_vertice(const T &vertice) {
-        m_vertices[next_idx] = vertice;
+        m_vertices.emplace(next_idx, vertice);
         m_adjacency_lists.try_emplace(next_idx);
 
-        Index vert_idx = next_idx;
-        next_idx += 1;
-        return vert_idx;
+        return next_idx++;
     }
 
     // Erase vertex by index from the graph
     void erase_vertice(Index idx) {
+        if (m_vertices.find(idx) == m_vertices.end()) {
+            return;
+        }
+
         auto &node_adj_list = m_adjacency_lists[idx];
         for (auto &dest: node_adj_list) {
             m_edge_weights.erase(Edge(idx, dest));
@@ -69,24 +71,25 @@ public:
 
     // Insert edge from src to dest with given weight into the graph
     void insert_edge(const Index src, const Index dest, const Weight weight) {
+        if (m_vertices.find(src) == m_vertices.end() ||
+            m_vertices.find(dest) == m_vertices.end()) {
+            return;
+        }
+
         auto &src_adj_list = m_adjacency_lists[src];
         src_adj_list.emplace(dest);
 
-        m_edge_weights[Edge(src, dest)] = weight;
+        m_edge_weights.emplace(Edge(src, dest), weight);
     }
 
     // Erase edge from src to dest from the graph
     void erase_edge(const Index src, const Index dest) {
+        if (m_edge_weights.find(Edge{src, dest}) == m_edge_weights.end()) {
+            return;
+        }
         auto &src_adj_list = m_adjacency_lists[src];
-        auto edge_it = std::find(src_adj_list.begin(), src_adj_list.end(), dest);
-        if (edge_it != src_adj_list.end()) {
-            src_adj_list.erase(edge_it);
-        }
-
-        auto weight_it = m_edge_weights.find(Edge(src, dest));
-        if (weight_it != m_edge_weights.end()) {
-            m_edge_weights.erase(weight_it);
-        }
+        src_adj_list.erase(dest);
+        m_edge_weights.erase(Edge{src,dest});
     };
 
     // Number of vertices in graph
@@ -107,7 +110,7 @@ public:
     }
 
     // Get edges of the graph
-    const std::unordered_map<Edge, Weight, EdgeHash> &get_edges() const {
+    const std::unordered_map<Edge, Weight> &get_edges() const {
         return m_edge_weights;
     }
 
@@ -143,9 +146,9 @@ public:
         std::string picture_name(log_num + ".png");
         std::ofstream log(graphviz_name);
 
-        log << "digraph dot {\n"
-            << "\trankdir = TB\n"
-            << "\t\"info\" [shape = \"record\", style = \"filled\", fillcolor = \"grey\", label = \"{n_vertices = "
+        log << "digraph dot {\n"    \
+               "\trankdir = TB\n"   \
+               "\t\"info\" [shape = \"record\", style = \"filled\", fillcolor = \"grey\", label = \"{n_vertices = "
             << n_vertices() << "| n_edges = "
             << m_edge_weights.size() << "}\"]\n";
 
@@ -153,19 +156,13 @@ public:
             log << "\t\"vertex" << idx
                 << "\" [shape = \"circle\", style = \"filled\", fillcolor = \""
                 << "Grey\", label = \"" << val
-                << "\"]" << '\n';
+                << "\"]\n";
 
         }
         for (auto &[idx, val]: m_vertices) {
             for (auto &adj_idx: m_adjacency_lists[idx]) {
-                std::string weight_str = "";
-                if (m_edge_weights[Edge(idx, adj_idx)].is_inf()) {
-                    weight_str += "inf";
-                } else {
-                    weight_str += std::to_string(m_edge_weights[Edge(idx, adj_idx)].m_val.value());
-                }
                 log << "\t\"vertex" << idx << "\" -> \"vertex" << adj_idx << "\""
-                    << "[ label = \"" << weight_str << "\"]" << '\n';
+                    << "[ label = \"" << m_edge_weights[Edge(idx, adj_idx)] << "\"]\n";
             }
         }
 

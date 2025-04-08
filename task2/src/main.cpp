@@ -66,7 +66,7 @@ int main() {
     for (size_t i = 0; i < num_vertices(g); ++i) {
         for (size_t j = 0; j < num_vertices(g); ++j) {
             std::cout << "Shortest path counted by boost between " << i << " and " << j << " = ";
-            if (distance_matrix[i][j] == boost_swap_impl::numeric_limits<int>::max()) {
+            if (distance_matrix[i][j] == std::numeric_limits<int>::max()) {
                 assert(johnson.get_shortest_path(i, j).is_inf());
                 std::cout << "INF\n";
             } else {
@@ -80,6 +80,6 @@ int main() {
                 std::cout << johnson.get_shortest_path(i, j).m_val.value() << '\n';
             }
         }
-        std::cout << "\n";
+        std::cout << '\n';
     }
 }

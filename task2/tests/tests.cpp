@@ -66,7 +66,7 @@ TEST(Johnson_tests, basic_test) {
 
     for (size_t i = 0; i < num_vertices(g); ++i) {
         for (size_t j = 0; j < num_vertices(g); ++j) {
-            if (distance_matrix[i][j] == boost_swap_impl::numeric_limits<int>::max()) {
+            if (distance_matrix[i][j] == std::numeric_limits<int>::max()) {
                 assert(johnson.get_shortest_path(i, j).is_inf());
             } else {
                 assert(distance_matrix[i][j] == johnson.get_shortest_path(i, j).m_val.value());
@@ -123,7 +123,7 @@ TEST(Johnson_tests, random_test) {
 
             for (int i = 0; i < num_vertices; ++i) {
                 for (int j = 0; j < num_vertices; ++j) {
-                    if (distance_matrix[i][j] == boost_swap_impl::numeric_limits<int>::max()) {
+                    if (distance_matrix[i][j] == std::numeric_limits<int>::max()) {
                         assert(johnson.get_shortest_path(i, j).is_inf());
                     } else {
                         assert(distance_matrix[i][j] == johnson.get_shortest_path(i, j).m_val.value());

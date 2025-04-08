@@ -2,10 +2,6 @@
 
 namespace Graphs {
 
-bool Edge::operator==(const Edge &other) const {
-    return m_src == other.m_src && m_dest == other.m_dest;
-}
-
 Weight Weight::operator+(const Weight &other) const {
     if (is_inf() || other.is_inf()) {
         return Weight();
@@ -42,6 +38,16 @@ bool Weight::operator==(const Weight &other) const {
 
 bool Weight::operator!=(const Weight &other) const {
     return !(*this == other);
+}
+
+std::ostream &operator<<(std::ostream &os, const Weight &weight) {
+    if (weight.is_inf()) {
+        os << "inf";
+    } else {
+        os << weight.m_val.value();
+    }
+
+    return os;
 }
 
 } // namespace Graphs

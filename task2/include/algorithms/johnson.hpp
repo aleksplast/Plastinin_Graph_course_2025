@@ -33,7 +33,7 @@ private:
     bool m_has_negative_cycle = false;
 
 public:
-    Johnson(const DirectedGraph<T> &graph) {
+    Johnson(DirectedGraph<T> &graph) {
         for (auto &[idx, val]: graph.get_vertices()) {
             for (auto &[other_idx, other_val]: graph.get_vertices()) {
                 m_johnson_info[idx].path_weights[other_idx];
